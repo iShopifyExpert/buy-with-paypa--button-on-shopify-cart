@@ -1,0 +1,107 @@
+        {%- if additional_checkout_buttons -%}
+          {%- capture all_buttons_json -%}
+            {{ content_for_additional_checkout_buttons | json }}
+          {%- endcapture -%}
+
+          {%- assign paypal_button_config = all_buttons_json
+            | replace: '\u0026quot;', '"'
+            | replace: '\u0026', '&'
+            | replace: '\u003c', '<'
+            | replace: '\u003e', '>'
+            | replace: '\&quot;', '"'
+            | replace: '&amp;', '&'
+            | replace: '\&', '&'
+            | replace: '\ ', '\'
+            | split: '{"name":"paypal",'
+            | last
+            | prepend: '{"name":"paypal",'
+            | split: ',{"name"'
+            | first
+          -%}
+          <div class="cart__dynamic-checkout-buttons additional-checkout-buttons">
+            <div class="dynamic-checkout__content" id="dynamic-checkout-cart" data-shopify="dynamic-checkout-cart">
+              <shopify-accelerated-checkout-cart wallet-configs='[{{ paypal_button_config }}]'></shopify-accelerated-checkout-cart>
+            </div>
+          </div>
+          <script>
+          document.addEventListener("DOMContentLoaded", function () {
+            // Step 1: Find the wallet-configs JSON
+            const checkoutContent = document.querySelector(".dynamic-checkout__content");
+            
+            if (!checkoutContent) {
+              console.error("No dynamic-checkout__content container found.");
+              return;
+            }
+          
+            const checkoutCart = document.querySelector(
+              "shopify-accelerated-checkout-cart"
+            );
+          
+            if (!checkoutCart) {
+              console.error("No Shopify accelerated checkout cart found.");
+              return;
+            }
+          
+            const walletConfigs = checkoutCart.getAttribute("wallet-configs");
+            if (!walletConfigs) {
+              console.error("No wallet-configs attribute found.");
+              return;
+            }
+          
+            // Parse the JSON
+            let paypalConfig;
+            try {
+              paypalConfig = JSON.parse(walletConfigs)[0];
+            } catch (err) {
+              console.error("Error parsing wallet-configs JSON:", err);
+              return;
+            }
+          
+            // Step 2: Load PayPal SDK
+            const script = document.createElement("script");
+            script.src = paypalConfig.wallet_params.sdkUrl;
+            script.onload = function () {
+              // Step 3: Create a container for the PayPal Button
+              const paypalButtonContainer = document.createElement("div");
+              paypalButtonContainer.id = "paypal-button-container";
+          
+              // Append the button container inside the dynamic-checkout__content
+              checkoutContent.appendChild(paypalButtonContainer);
+          
+              // Step 4: Render the PayPal Button
+              paypal.Buttons({
+                createOrder: function (data, actions) {
+                  return actions.order.create({
+                    purchase_units: [
+                      {
+                        amount: {
+                          value: "{{ cart.total_price | money_without_currency }}", // Replace with the actual price
+                          currency_code: paypalConfig.wallet_params.currencyCode,
+                        },
+                        payee: {
+                          merchant_id: paypalConfig.wallet_params.merchantId,
+                        },
+                      },
+                    ],
+                  });
+                },
+                onApprove: function (data, actions) {
+                  return actions.order.capture().then(function (details) {
+                    alert("Transaction completed by " + details.payer.name.given_name);
+                  });
+                },
+                onError: function (err) {
+                  console.error("PayPal Button Error:", err);
+                },
+              }).render("#paypal-button-container");
+            };
+            script.onerror = function () {
+              console.error("Failed to load PayPal SDK.");
+            };
+            document.head.appendChild(script);
+          });
+          </script>
+          <style>
+           #paypal-button-container { margin-top: 10px; }
+          </style>
+        {%- endif -%}
