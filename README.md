@@ -1,1 +1,1 @@
-# buy-with-paypa--button-on-shopify-cart
+# buy-with-paypal-button-on-shopify-cart
